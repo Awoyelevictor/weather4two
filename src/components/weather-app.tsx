@@ -85,7 +85,7 @@ const WeatherDetails = ({ humidity, wind, rain }: { humidity: number, wind: numb
 );
 
 export const WeatherApp: FC = () => {
-  const [locations, setLocations] = useLocalStorage<Location[]>('weather-locations', [{id: '1', name: 'Minsk'}]);
+  const [locations, setLocations] = useLocalStorage<Location[]>('weather-locations', []);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,11 +124,71 @@ export const WeatherApp: FC = () => {
     }
   }, [toast, weatherData]);
 
-  useEffect(() => {
-    if (locations.length > 0 && !selectedLocation) {
-      handleSelectLocation(locations[0]);
+  const fetchWeatherByCoords = useCallback(async (lat: number, lon: number) => {
+    setIsLoading(true);
+    setWeatherData(null);
+    try {
+      const data = await getWeatherData(`${lat},${lon}`);
+      const newLocation: Location = {
+        id: new Date().getTime().toString(),
+        name: data.location.name,
+        isCurrent: true,
+      };
+      
+      const newLocations = [newLocation, ...locations.filter(l => !l.isCurrent)];
+      setLocations(newLocations);
+      setSelectedLocation(newLocation);
+      setWeatherData(data);
+
+      if (data.forecast.forecastday.length > 0 && data.forecast.forecastday[0].hour.length > 0) {
+        const now = new Date();
+        const currentHour = now.getHours();
+        const closestHour = data.forecast.forecastday[0].hour.find(h => new Date(h.time).getHours() >= currentHour) || data.forecast.forecastday[0].hour[0];
+        setSelectedHour(closestHour);
+      }
+    } catch (error) {
+      console.error('Failed to fetch weather by coordinates:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Could not fetch weather for your location.',
+      });
+      // Fallback if location fetch fails
+      if (locations.length > 0) {
+        handleSelectLocation(locations[0]);
+      }
+    } finally {
+      setIsLoading(false);
     }
-  }, [locations, selectedLocation, handleSelectLocation]);
+  }, [locations, setLocations, toast, handleSelectLocation]);
+
+
+  useEffect(() => {
+    if (!selectedLocation) {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              fetchWeatherByCoords(position.coords.latitude, position.coords.longitude);
+            },
+            (error) => {
+              console.error('Geolocation error:', error);
+              if (locations.length > 0) {
+                handleSelectLocation(locations[0]);
+              } else {
+                setIsLoading(false);
+              }
+            }
+          );
+        } else {
+            if (locations.length > 0) {
+                handleSelectLocation(locations[0]);
+            } else {
+                setIsLoading(false);
+            }
+        }
+    }
+  }, [selectedLocation, locations, handleSelectLocation, fetchWeatherByCoords]);
+
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -291,7 +351,26 @@ export const WeatherApp: FC = () => {
               <DailyForecast forecast={weatherData.forecast.forecastday} />
             </main>
           </motion.div>
-        ) : null}
+        ) : (
+          <motion.div key="search-prompt" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 h-[812px] flex flex-col justify-center items-center text-center">
+            <MapPin className="w-16 h-16 text-muted-foreground mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Welcome to Weather4two</h2>
+            <p className="text-muted-foreground mb-6">Please allow location access or search for a city to get started.</p>
+            <form onSubmit={handleSearch} className="flex gap-2 w-full max-w-xs">
+              <Input 
+                type="text" 
+                placeholder="Search for a city..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-white/20 border-white/30 placeholder:text-muted-foreground"
+                disabled={isSearching}
+              />
+              <Button type="submit" variant="secondary" size="icon" disabled={isSearching}>
+                <Search />
+              </Button>
+            </form>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );
