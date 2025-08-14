@@ -68,10 +68,11 @@ const weatherFlow = ai.defineFlow(
         prompt: `What is the weather in ${location}?`,
         // Make the tool available to the model
         tools: [getWeatherTool],
+        model: 'googleai/gemini-2.0-flash',
     });
 
     // The model will automatically call the tool and return the output.
-    const toolOutput = llmResponse.toolRequest?.tool.output;
+    const toolOutput = llmResponse.toolRequest()?.tool.output;
 
     if (!toolOutput) {
         throw new Error('The model did not return weather data.');
