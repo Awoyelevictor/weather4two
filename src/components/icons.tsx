@@ -3,33 +3,8 @@ import { Sun, Cloud, CloudSun, CloudRain, CloudSnow, Wind, Droplets, Umbrella, C
 
 type IconProps = { className?: string };
 
-const iconMap: Record<string, FC<IconProps>> = {
-  'sunny': Sun,
-  'clear': Sun,
-  'partly cloudy': CloudSun,
-  'rainy - cloudy': CloudRain,
-  'rainy': CloudRain,
-  'cloudy': Cloud,
-  'rain': CloudRain,
-  'storm': CloudLightning,
-  'thunder': CloudLightning,
-  'slow': Cloud,
-  'snow': CloudSnow,
-  'thunderstorm': CloudLightning,
-  'default': Cloud,
-};
-
-export const getWeatherIcon = (description: string, props?: IconProps): JSX.Element => {
-  const key = description.toLowerCase();
-  for (const iconKey in iconMap) {
-    if (key.includes(iconKey)) {
-      const IconComponent = iconMap[iconKey];
-      return <IconComponent {...props} />;
-    }
-  }
-  return <iconMap.default {...props} />;
-};
-
+// This component is no longer used for weather icons as we are now fetching them from the API.
+// It is kept for the other icons.
 export const Icons = {
   Sun,
   Cloud,

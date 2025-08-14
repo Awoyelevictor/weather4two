@@ -1,18 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, type FC } from 'react';
+import { useState, useEffect, useCallback, type FC } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import type { WeatherData, Location, ForecastDay } from '@/lib/types';
+import type { WeatherData, Location, ForecastDaySchema, HourSchema } from '@/lib/types';
 import { getWeatherData } from '@/lib/weather';
-import { getWeatherIcon, Icons } from '@/components/icons';
-import { MoreHorizontal, ChevronLeft, Calendar, Sun, Moon } from 'lucide-react';
+import { Icons } from '@/components/icons';
+import { MoreHorizontal, ChevronLeft, Calendar } from 'lucide-react';
+import Image from 'next/image';
 
-// Custom hook for localStorage
 const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T) => void] => {
   const [storedValue, setStoredValue] = useState<T>(() => {
     if (typeof window === 'undefined') {
@@ -42,42 +41,26 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T) => vo
   return [storedValue, setValue];
 };
 
-
-const HourlyForecast = ({ forecast, selectedTime }: { forecast: { time: string, temp: number, description: string }[], selectedTime: string }) => (
-    <div>
-        <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-lg">Today</h3>
-            <Button variant="ghost" size="sm">7 days <ChevronLeft className="h-4 w-4 rotate-180" /></Button>
+const DailyForecast = ({ forecast }: { forecast: (typeof ForecastDaySchema)[] }) => {
+  const getDayName = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  };
+  return (
+    <div className="space-y-2">
+      {forecast.slice(1).map(day => (
+        <div key={day.date_epoch} className="flex justify-between items-center">
+          <span className="w-1/4">{getDayName(day.date)}</span>
+          <div className="flex items-center gap-2">
+            <Image src={`https:${day.day.condition.icon}`} alt={day.day.condition.text} width={24} height={24} />
+            <span>{day.day.condition.text}</span>
+          </div>
+          <span>+{Math.round(day.day.maxtemp_c)}° +{Math.round(day.day.mintemp_c)}°</span>
         </div>
-        <div className="flex justify-around">
-            {forecast.map(({ time, temp, description }) => (
-                <div key={time} className={`text-center p-2 rounded-full ${selectedTime === time ? 'bg-primary text-primary-foreground' : ''}`}>
-                    <p className="text-lg font-medium">{temp}°</p>
-                    <div className="w-8 h-8 mx-auto my-2">
-                      {getWeatherIcon(description, { className: "w-8 h-8" })}
-                    </div>
-                    <p className="text-sm">{time}</p>
-                </div>
-            ))}
-        </div>
+      ))}
     </div>
-);
-
-
-const DailyForecast = ({ forecast }: { forecast: ForecastDay[] }) => (
-  <div className="space-y-2">
-    {forecast.slice(1).map(day => (
-      <div key={day.day} className="flex justify-between items-center">
-        <span className="w-1/4">{day.day}</span>
-        <div className="flex items-center gap-2">
-          {getWeatherIcon(day.description, { className: "w-6 h-6" })}
-          <span>{day.description}</span>
-        </div>
-        <span>+{day.high}° +{day.low}°</span>
-      </div>
-    ))}
-  </div>
-);
+  );
+};
 
 const WeatherDetails = ({ humidity, wind, rain }: { humidity: number, wind: number, rain: number }) => (
   <div className="flex justify-around text-center bg-card/50 backdrop-blur-sm p-4 rounded-2xl">
@@ -100,13 +83,13 @@ const WeatherDetails = ({ humidity, wind, rain }: { humidity: number, wind: numb
 );
 
 export const WeatherApp: FC = () => {
-  const [locations, setLocations] = useLocalStorage<Location[]>('weather-locations', [{id: '1', name: 'Minsk'}]);
+  const [locations] = useLocalStorage<Location[]>('weather-locations', [{id: '1', name: 'Minsk'}]);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<'daily' | 'weekly'>('daily');
   const { toast } = useToast();
-  const [time, setTime] = useState('11:00');
+  const [selectedHour, setSelectedHour] = useState<typeof HourSchema | null>(null);
 
   const handleSelectLocation = useCallback(async (location: Location) => {
     setSelectedLocation(location);
@@ -115,11 +98,18 @@ export const WeatherApp: FC = () => {
     try {
       const data = await getWeatherData(location.name);
       setWeatherData(data);
+      if (data.forecast.forecastday.length > 0 && data.forecast.forecastday[0].hour.length > 0) {
+        const now = new Date();
+        const currentHour = now.getHours();
+        const closestHour = data.forecast.forecastday[0].hour.find(h => new Date(h.time).getHours() >= currentHour) || data.forecast.forecastday[0].hour[0];
+        setSelectedHour(closestHour);
+      }
     } catch (error) {
+      console.error(error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Could not fetch weather data.',
+        description: (error as Error).message || 'Could not fetch weather data.',
       });
     } finally {
       setIsLoading(false);
@@ -132,14 +122,11 @@ export const WeatherApp: FC = () => {
     }
   }, [locations, selectedLocation, handleSelectLocation]);
 
-
-  const hourlyForecastData = [
-      { time: '10:00', temp: 23, description: 'Partly Cloudy' },
-      { time: '11:00', temp: 21, description: 'Thunderstorm' },
-      { time: '12:00', temp: 22, description: 'Partly Cloudy' },
-      { time: '01:00', temp: 19, description: 'Cloudy' }
-  ];
-
+  const getDayName = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  };
+  
   return (
     <div className="w-full max-w-sm mx-auto bg-background rounded-3xl shadow-2xl overflow-hidden font-body">
       <AnimatePresence mode="wait">
@@ -149,7 +136,7 @@ export const WeatherApp: FC = () => {
             <Skeleton className="h-24 w-full" />
             <Skeleton className="h-32 w-full" />
           </motion.div>
-        ) : view === 'daily' && weatherData && selectedLocation ? (
+        ) : view === 'daily' && weatherData && selectedLocation && selectedHour ? (
           <motion.div key="daily" initial={{ opacity: 0, x: -100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} className="p-6 bg-gradient-to-b from-blue-400 to-blue-600 text-white min-h-[812px] flex flex-col">
             <header className="flex justify-between items-center mb-4">
               <Button variant="ghost" size="icon"><MoreHorizontal className="rotate-90" /></Button>
@@ -162,15 +149,15 @@ export const WeatherApp: FC = () => {
 
             <main className="flex-grow flex flex-col justify-between text-center">
               <div className="flex-grow flex flex-col items-center justify-center -mt-8">
-                {getWeatherIcon(weatherData.current.description, { className: "w-48 h-48 drop-shadow-2xl"})}
-                <h2 className="text-8xl font-bold tracking-tighter -mt-8">{weatherData.current.temperature}°</h2>
-                <p className="text-2xl font-medium">{weatherData.current.description}</p>
-                <p className="text-sm text-white/80">Monday, 17 May</p>
+                <Image src={`https:${weatherData.current.condition.icon}`} alt={weatherData.current.condition.text} width={192} height={192} className="drop-shadow-2xl" />
+                <h2 className="text-8xl font-bold tracking-tighter -mt-8">{Math.round(weatherData.current.temp_c)}°</h2>
+                <p className="text-2xl font-medium">{weatherData.current.condition.text}</p>
+                <p className="text-sm text-white/80">{getDayName(weatherData.location.localtime)}</p>
               </div>
 
               <div className="space-y-6">
-                <WeatherDetails humidity={weatherData.details.humidity} wind={weatherData.details.windSpeed} rain={weatherData.details.chanceOfRain} />
-                <div className="bg-card text-card-foreground p-4 rounded-3xl">
+                <WeatherDetails humidity={weatherData.current.humidity} wind={weatherData.current.wind_kph} rain={weatherData.forecast.forecastday[0].day.daily_chance_of_rain} />
+                <Card className="bg-card text-card-foreground p-4 rounded-3xl">
                   <div className="flex justify-between items-center mb-4">
                       <h3 className="font-bold text-lg">Today</h3>
                       <Button variant="ghost" size="sm" onClick={() => setView('weekly')}>
@@ -178,17 +165,17 @@ export const WeatherApp: FC = () => {
                       </Button>
                   </div>
                   <div className="flex justify-around">
-                      {hourlyForecastData.map(({ time, temp, description }) => (
-                          <button key={time} onClick={() => setTime(time)} className={`text-center p-3 rounded-full ${time === '11:00' ? 'bg-primary text-primary-foreground' : ''}`}>
-                              <p className="text-lg font-medium">{temp}°</p>
+                      {weatherData.forecast.forecastday[0].hour.filter((_,i) => i % 3 === 0).slice(0, 4).map((hour) => (
+                          <button key={hour.time_epoch} onClick={() => setSelectedHour(hour)} className={`text-center p-3 rounded-full ${selectedHour?.time_epoch === hour.time_epoch ? 'bg-primary text-primary-foreground' : ''}`}>
+                              <p className="text-lg font-medium">{Math.round(hour.temp_c)}°</p>
                               <div className="w-8 h-8 mx-auto my-2">
-                                {getWeatherIcon(description, { className: "w-8 h-8" })}
+                                <Image src={`https:${hour.condition.icon}`} alt={hour.condition.text} width={32} height={32} />
                               </div>
-                              <p className="text-sm">{time}</p>
+                              <p className="text-sm">{new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric', hour12: true })}</p>
                           </button>
                       ))}
                   </div>
-                </div>
+                </Card>
               </div>
             </main>
           </motion.div>
@@ -203,19 +190,19 @@ export const WeatherApp: FC = () => {
               <div className="bg-gradient-to-b from-blue-400 to-blue-600 text-white rounded-3xl p-6 mb-6 text-center">
                   <p className="font-semibold">Tomorrow</p>
                   <div className="flex items-center justify-center gap-4 my-2">
-                      {getWeatherIcon(weatherData.forecast[1].description, { className: "w-20 h-20" })}
+                      <Image src={`https:${weatherData.forecast.forecastday[1].day.condition.icon}`} alt={weatherData.forecast.forecastday[1].day.condition.text} width={80} height={80} />
                       <p className="text-7xl font-bold">
-                          {weatherData.forecast[1].high}°
-                          <span className="text-5xl text-white/70">/{weatherData.forecast[1].low}°</span>
+                          {Math.round(weatherData.forecast.forecastday[1].day.maxtemp_c)}°
+                          <span className="text-5xl text-white/70">/{Math.round(weatherData.forecast.forecastday[1].day.mintemp_c)}°</span>
                       </p>
                   </div>
-                  <p>{weatherData.forecast[1].description}</p>
+                  <p>{weatherData.forecast.forecastday[1].day.condition.text}</p>
                   <div className="mt-4">
-                    <WeatherDetails humidity={weatherData.details.humidity} wind={weatherData.details.windSpeed} rain={weatherData.details.chanceOfRain} />
+                    <WeatherDetails humidity={weatherData.forecast.forecastday[1].day.avghumidity} wind={weatherData.forecast.forecastday[1].day.maxwind_kph} rain={weatherData.forecast.forecastday[1].day.daily_chance_of_rain} />
                   </div>
               </div>
 
-              <DailyForecast forecast={weatherData.forecast} />
+              <DailyForecast forecast={weatherData.forecast.forecastday} />
             </main>
           </motion.div>
         ) : null}
