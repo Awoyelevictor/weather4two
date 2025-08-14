@@ -20,16 +20,17 @@ export async function getWeather(location: WeatherInput): Promise<WeatherData> {
   return weatherFlow(location);
 }
 
-const getWeatherTool = ai.defineTool(
+const weatherFlow = ai.defineFlow(
   {
-    name: 'getWeatherTool',
-    description: 'Returns weather data for a given location.',
-    inputSchema: z.string().describe('The location to get weather for.'),
+    name: 'weatherFlow',
+    inputSchema: z.string(),
     outputSchema: WeatherDataSchema,
+    config: {
+        // Lower temperature to allow for more varied and creative responses
+        temperature: 0.2,
+    }
   },
   async (location) => {
-    // In a real application, this is where you would call a third-party weather API.
-    // For this example, we'll use another AI prompt to generate the data.
     const weatherGenPrompt = ai.definePrompt({
       name: 'weatherGenPrompt',
       input: {schema: z.string()},
@@ -48,37 +49,11 @@ const getWeatherTool = ai.defineTool(
             day: new Date().toLocaleString('en-US', {weekday: 'long'}),
         },
     });
-    return output!;
-  }
-);
 
-
-const weatherFlow = ai.defineFlow(
-  {
-    name: 'weatherFlow',
-    inputSchema: z.string(),
-    outputSchema: WeatherDataSchema,
-    config: {
-        // Lower temperature to allow for more varied and creative responses
-        temperature: 0.8
-    }
-  },
-  async (location) => {
-    const llmResponse = await ai.generate({
-        prompt: `What is the weather in ${location}?`,
-        // Make the tool available to the model
-        tools: [getWeatherTool],
-        model: 'googleai/gemini-2.0-flash',
-    });
-
-    // The model will automatically call the tool and return the output.
-    const toolOutput = llmResponse.toolRequest()?.tool.output;
-
-    if (!toolOutput) {
-        throw new Error('The model did not return weather data.');
+    if (!output) {
+        throw new Error('Could not generate weather data.');
     }
     
-    // We need to parse the tool output as it's returned as a string.
-    return WeatherDataSchema.parse(toolOutput);
+    return output;
   }
 );
