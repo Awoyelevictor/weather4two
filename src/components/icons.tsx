@@ -1,5 +1,5 @@
 import type { FC } from 'react';
-import { Sun, Cloud, CloudSun, CloudRain, CloudSnow, Wind, Droplets, Umbrella, CloudLightning, Thermometer, MapPin } from 'lucide-react';
+import { Sun, Cloud, CloudSun, CloudRain, CloudSnow, Wind, Droplets, Umbrella, CloudLightning, Thermometer, MapPin, Cloudy, Waves } from 'lucide-react';
 
 type IconProps = { className?: string };
 
@@ -7,8 +7,13 @@ const iconMap: Record<string, FC<IconProps>> = {
   'sunny': Sun,
   'clear': Sun,
   'partly cloudy': CloudSun,
+  'rainy - cloudy': CloudRain,
+  'rainy': CloudRain,
   'cloudy': Cloud,
   'rain': CloudRain,
+  'storm': CloudLightning,
+  'thunder': CloudLightning,
+  'slow': Cloud,
   'snow': CloudSnow,
   'thunderstorm': CloudLightning,
   'default': Cloud,
@@ -16,8 +21,13 @@ const iconMap: Record<string, FC<IconProps>> = {
 
 export const getWeatherIcon = (description: string, props?: IconProps): JSX.Element => {
   const key = description.toLowerCase();
-  const IconComponent = iconMap[key] || iconMap['default'];
-  return <IconComponent {...props} />;
+  for (const iconKey in iconMap) {
+    if (key.includes(iconKey)) {
+      const IconComponent = iconMap[iconKey];
+      return <IconComponent {...props} />;
+    }
+  }
+  return <iconMap.default {...props} />;
 };
 
 export const Icons = {
@@ -32,4 +42,6 @@ export const Icons = {
   CloudLightning,
   Thermometer,
   MapPin,
+  Cloudy,
+  Waves,
 };
