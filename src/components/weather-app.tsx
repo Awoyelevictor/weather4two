@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, type FC } from 'react';
@@ -138,8 +139,7 @@ export const WeatherApp: FC = () => {
         isCurrent: true,
       };
       
-      const newLocations = [newLocation, ...locations.filter(l => !l.isCurrent)];
-      setLocations(newLocations);
+      setLocations(prevLocations => [newLocation, ...prevLocations.filter(l => !l.isCurrent)]);
       setSelectedLocation(newLocation);
       setWeatherData(data);
 
@@ -163,7 +163,7 @@ export const WeatherApp: FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [locations, setLocations, toast, handleSelectLocation]);
+  }, [setLocations, toast, handleSelectLocation, locations]);
 
 
   useEffect(() => {
