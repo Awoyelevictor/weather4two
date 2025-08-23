@@ -128,45 +128,43 @@ export const WeatherApp: FC = () => {
     }
   }, [toast, weatherData]);
 
-  const fetchWeatherByCoords = useCallback(async (lat: number, lon: number) => {
-    setIsLoading(true);
-    setWeatherData(null);
-    try {
-      const data = await getWeatherData(`${lat},${lon}`);
-      const newLocation: Location = {
-        id: new Date().getTime().toString(),
-        name: data.location.name,
-        isCurrent: true,
-      };
-      
-      setLocations(prevLocations => [newLocation, ...prevLocations.filter(l => !l.isCurrent)]);
-      setSelectedLocation(newLocation);
-      setWeatherData(data);
-
-      if (data.forecast.forecastday.length > 0 && data.forecast.forecastday[0].hour.length > 0) {
-        const now = new Date();
-        const currentHour = now.getHours();
-        const closestHour = data.forecast.forecastday[0].hour.find(h => new Date(h.time).getHours() >= currentHour) || data.forecast.forecastday[0].hour[0];
-        setSelectedHour(closestHour);
-      }
-    } catch (error) {
-      console.error('Failed to fetch weather by coordinates:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Could not fetch weather for your location.',
-      });
-      // Fallback if location fetch fails
-      if (locations.length > 0) {
-        handleSelectLocation(locations[0]);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [setLocations, toast, handleSelectLocation, locations]);
-
-
   useEffect(() => {
+    const fetchWeatherByCoords = async (lat: number, lon: number) => {
+      setIsLoading(true);
+      setWeatherData(null);
+      try {
+        const data = await getWeatherData(`${lat},${lon}`);
+        const newLocation: Location = {
+          id: new Date().getTime().toString(),
+          name: data.location.name,
+          isCurrent: true,
+        };
+        
+        setLocations(prevLocations => [newLocation, ...prevLocations.filter(l => !l.isCurrent)]);
+        setSelectedLocation(newLocation);
+        setWeatherData(data);
+  
+        if (data.forecast.forecastday.length > 0 && data.forecast.forecastday[0].hour.length > 0) {
+          const now = new Date();
+          const currentHour = now.getHours();
+          const closestHour = data.forecast.forecastday[0].hour.find(h => new Date(h.time).getHours() >= currentHour) || data.forecast.forecastday[0].hour[0];
+          setSelectedHour(closestHour);
+        }
+      } catch (error) {
+        console.error('Failed to fetch weather by coordinates:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Could not fetch weather for your location.',
+        });
+        if (locations.length > 0) {
+          handleSelectLocation(locations[0]);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
     if (!selectedLocation && locations !== null) {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -190,7 +188,7 @@ export const WeatherApp: FC = () => {
           }
       }
     }
-  }, [selectedLocation, locations, handleSelectLocation, fetchWeatherByCoords]);
+  }, [selectedLocation, locations, handleSelectLocation, setLocations, toast]);
 
 
   useEffect(() => {
