@@ -15,18 +15,21 @@ import { Input } from './ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 
 const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    if (typeof window === 'undefined') {
-      return initialValue;
-    }
+  const [storedValue, setStoredValue] = useState<T>(initialValue);
+
+  useEffect(() => {
     try {
       const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
+      if (item) {
+        setStoredValue(JSON.parse(item));
+      } else {
+        setStoredValue(initialValue);
+      }
     } catch (error) {
       console.error(error);
-      return initialValue;
+      setStoredValue(initialValue);
     }
-  });
+  }, [key, initialValue]);
 
   const setValue = (value: T | ((val: T) => T)) => {
     try {
@@ -164,28 +167,28 @@ export const WeatherApp: FC = () => {
 
 
   useEffect(() => {
-    if (!selectedLocation) {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              fetchWeatherByCoords(position.coords.latitude, position.coords.longitude);
-            },
-            (error) => {
-              console.error('Geolocation error:', error);
-              if (locations.length > 0) {
-                handleSelectLocation(locations[0]);
-              } else {
-                setIsLoading(false);
-              }
-            }
-          );
-        } else {
+    if (!selectedLocation && locations !== null) {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            fetchWeatherByCoords(position.coords.latitude, position.coords.longitude);
+          },
+          (error) => {
+            console.error('Geolocation error:', error);
             if (locations.length > 0) {
-                handleSelectLocation(locations[0]);
+              handleSelectLocation(locations[0]);
             } else {
-                setIsLoading(false);
+              setIsLoading(false);
             }
-        }
+          }
+        );
+      } else {
+          if (locations.length > 0) {
+              handleSelectLocation(locations[0]);
+          } else {
+              setIsLoading(false);
+          }
+      }
     }
   }, [selectedLocation, locations, handleSelectLocation, fetchWeatherByCoords]);
 
