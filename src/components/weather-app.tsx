@@ -88,8 +88,10 @@ const WeatherDetails = ({ humidity, wind, rain }: { humidity: number, wind: numb
   </div>
 );
 
+const initialLocations: Location[] = [];
+
 export const WeatherApp: FC = () => {
-  const [locations, setLocations] = useLocalStorage<Location[]>('weather-locations', []);
+  const [locations, setLocations] = useLocalStorage<Location[]>('weather-locations', initialLocations);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
