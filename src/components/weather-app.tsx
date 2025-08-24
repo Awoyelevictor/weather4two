@@ -15,7 +15,7 @@ import Image from 'next/image';
 import { Input } from './ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 
-const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
+const useLocalStorage = <T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
   const [storedValue, setStoredValue] = useState<T>(initialValue);
 
   useEffect(() => {
@@ -129,43 +129,47 @@ export const WeatherApp: FC = () => {
   }, [toast, weatherData]);
 
   useEffect(() => {
-    const fetchWeatherByCoords = async (lat: number, lon: number) => {
-      setIsLoading(true);
-      setWeatherData(null);
-      try {
-        const data = await getWeatherData(`${lat},${lon}`);
-        const newLocation: Location = {
-          id: new Date().getTime().toString(),
-          name: data.location.name,
-          isCurrent: true,
-        };
-        
-        setLocations(prevLocations => [newLocation, ...prevLocations.filter(l => !l.isCurrent)]);
-        setSelectedLocation(newLocation);
-        setWeatherData(data);
-  
-        if (data.forecast.forecastday.length > 0 && data.forecast.forecastday[0].hour.length > 0) {
-          const now = new Date();
-          const currentHour = now.getHours();
-          const closestHour = data.forecast.forecastday[0].hour.find(h => new Date(h.time).getHours() >= currentHour) || data.forecast.forecastday[0].hour[0];
-          setSelectedHour(closestHour);
-        }
-      } catch (error) {
-        console.error('Failed to fetch weather by coordinates:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Could not fetch weather for your location.',
-        });
-        if (locations.length > 0) {
-          handleSelectLocation(locations[0]);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    const init = async () => {
+      const fetchWeatherByCoords = async (lat: number, lon: number) => {
+        setIsLoading(true);
+        setWeatherData(null);
+        try {
+          const data = await getWeatherData(`${lat},${lon}`);
+          const newLocation: Location = {
+            id: new Date().getTime().toString(),
+            name: data.location.name,
+            isCurrent: true,
+          };
+          setLocations(prevLocations => [newLocation, ...prevLocations.filter(l => !l.isCurrent)]);
+          setSelectedLocation(newLocation);
+          setWeatherData(data);
     
-    if (!selectedLocation && locations !== null) {
+          if (data.forecast.forecastday.length > 0 && data.forecast.forecastday[0].hour.length > 0) {
+            const now = new Date();
+            const currentHour = now.getHours();
+            const closestHour = data.forecast.forecastday[0].hour.find(h => new Date(h.time).getHours() >= currentHour) || data.forecast.forecastday[0].hour[0];
+            setSelectedHour(closestHour);
+          }
+        } catch (error) {
+          console.error('Failed to fetch weather by coordinates:', error);
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Could not fetch weather for your location.',
+          });
+          const storedLocations = JSON.parse(window.localStorage.getItem('weather-locations') || '[]');
+          if (storedLocations.length > 0) {
+            handleSelectLocation(storedLocations[0]);
+          }
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      if (locations === null || selectedLocation) {
+        return;
+      }
+
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
@@ -181,15 +185,17 @@ export const WeatherApp: FC = () => {
           }
         );
       } else {
-          if (locations.length > 0) {
-              handleSelectLocation(locations[0]);
-          } else {
-              setIsLoading(false);
-          }
+        if (locations.length > 0) {
+          handleSelectLocation(locations[0]);
+        } else {
+          setIsLoading(false);
+        }
       }
-    }
-  }, [selectedLocation, locations, handleSelectLocation, setLocations, toast]);
-
+    };
+  
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // This effect should only run once on mount
 
   useEffect(() => {
     const interval = setInterval(() => {
