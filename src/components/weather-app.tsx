@@ -142,7 +142,11 @@ export const WeatherApp: FC = () => {
             name: data.location.name,
             isCurrent: true,
           };
-          setLocations(prevLocations => [newLocation, ...prevLocations.filter(l => !l.isCurrent)]);
+          setLocations(prevLocations => {
+            const newLocations = [newLocation, ...prevLocations.filter(l => !l.isCurrent)];
+            window.localStorage.setItem('weather-locations', JSON.stringify(newLocations));
+            return newLocations;
+          });
           setSelectedLocation(newLocation);
           setWeatherData(data);
     
@@ -167,8 +171,9 @@ export const WeatherApp: FC = () => {
           setIsLoading(false);
         }
       };
-
-      if (locations === null || selectedLocation) {
+      
+      const storedLocations = JSON.parse(window.localStorage.getItem('weather-locations') || '[]');
+      if (selectedLocation) {
         return;
       }
 
@@ -179,16 +184,16 @@ export const WeatherApp: FC = () => {
           },
           (error) => {
             console.error('Geolocation error:', error);
-            if (locations.length > 0) {
-              handleSelectLocation(locations[0]);
+            if (storedLocations.length > 0) {
+              handleSelectLocation(storedLocations[0]);
             } else {
               setIsLoading(false);
             }
           }
         );
       } else {
-        if (locations.length > 0) {
-          handleSelectLocation(locations[0]);
+        if (storedLocations.length > 0) {
+          handleSelectLocation(storedLocations[0]);
         } else {
           setIsLoading(false);
         }
@@ -220,8 +225,9 @@ export const WeatherApp: FC = () => {
         id: new Date().getTime().toString(),
         name: data.location.name,
       };
-      if (!locations.some(l => l.name.toLowerCase() === newLocation.name.toLowerCase())) {
-        const newLocations = [...locations, newLocation];
+      const currentLocations = JSON.parse(window.localStorage.getItem('weather-locations') || '[]');
+      if (!currentLocations.some((l: Location) => l.name.toLowerCase() === newLocation.name.toLowerCase())) {
+        const newLocations = [...currentLocations, newLocation];
         setLocations(newLocations);
         setSelectedLocation(newLocation);
         setWeatherData(data);
@@ -232,7 +238,7 @@ export const WeatherApp: FC = () => {
           setSelectedHour(closestHour);
         }
       } else {
-        const existingLocation = locations.find(l => l.name.toLowerCase() === newLocation.name.toLowerCase())
+        const existingLocation = currentLocations.find((l: Location) => l.name.toLowerCase() === newLocation.name.toLowerCase())
         handleSelectLocation(existingLocation || null)
       }
       setSearchQuery('');
