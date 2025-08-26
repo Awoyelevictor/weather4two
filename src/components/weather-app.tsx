@@ -16,21 +16,18 @@ import { Input } from './ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 
 const useLocalStorage = <T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
-  const [storedValue, setStoredValue] = useState<T>(initialValue);
-
-  useEffect(() => {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    if (typeof window === 'undefined') {
+      return initialValue;
+    }
     try {
       const item = window.localStorage.getItem(key);
-      if (item) {
-        setStoredValue(JSON.parse(item));
-      } else {
-        setStoredValue(initialValue);
-      }
+      return item ? JSON.parse(item) : initialValue;
     } catch (error) {
       console.error(error);
-      setStoredValue(initialValue);
+      return initialValue;
     }
-  }, [key, initialValue]);
+  });
 
   const setValue = (value: T | ((val: T) => T)) => {
     try {
@@ -91,7 +88,7 @@ const WeatherDetails = ({ humidity, wind, rain }: { humidity: number, wind: numb
 const initialLocations: Location[] = [];
 
 export const WeatherApp: FC = () => {
-  const [locations, setLocations] = useLocalStorage<Location[]>('weather-locations', initialLocations);
+  const [locations, setLocations] = useState<Location[]>(initialLocations);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,6 +97,13 @@ export const WeatherApp: FC = () => {
   const [selectedHour, setSelectedHour] = useState<typeof HourSchema | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+    const storedLocations = JSON.parse(window.localStorage.getItem('weather-locations') || '[]');
+    setLocations(storedLocations);
+  }, []);
 
   const handleSelectLocation = useCallback(async (location: Location | null, forceRefresh = false) => {
     if (!location) return;
@@ -131,6 +135,8 @@ export const WeatherApp: FC = () => {
   }, [toast, weatherData]);
 
   useEffect(() => {
+    if (!isClient) return;
+  
     const init = async () => {
       const fetchWeatherByCoords = async (lat: number, lon: number) => {
         setIsLoading(true);
@@ -142,11 +148,13 @@ export const WeatherApp: FC = () => {
             name: data.location.name,
             isCurrent: true,
           };
+          
           setLocations(prevLocations => {
             const newLocations = [newLocation, ...prevLocations.filter(l => !l.isCurrent)];
             window.localStorage.setItem('weather-locations', JSON.stringify(newLocations));
             return newLocations;
           });
+          
           setSelectedLocation(newLocation);
           setWeatherData(data);
     
@@ -202,7 +210,7 @@ export const WeatherApp: FC = () => {
   
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // This effect should only run once on mount
+  }, [isClient]); 
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -225,10 +233,13 @@ export const WeatherApp: FC = () => {
         id: new Date().getTime().toString(),
         name: data.location.name,
       };
+      
       const currentLocations = JSON.parse(window.localStorage.getItem('weather-locations') || '[]');
       if (!currentLocations.some((l: Location) => l.name.toLowerCase() === newLocation.name.toLowerCase())) {
         const newLocations = [...currentLocations, newLocation];
         setLocations(newLocations);
+        window.localStorage.setItem('weather-locations', JSON.stringify(newLocations));
+
         setSelectedLocation(newLocation);
         setWeatherData(data);
          if (data.forecast.forecastday.length > 0 && data.forecast.forecastday[0].hour.length > 0) {
@@ -259,10 +270,22 @@ export const WeatherApp: FC = () => {
     return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   };
   
+  if (!isClient) {
+    return (
+      <div className="w-full max-w-sm mx-auto bg-background rounded-3xl shadow-2xl overflow-hidden font-body">
+        <div className="p-6 space-y-4 h-[812px] flex flex-col justify-center">
+          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-sm mx-auto bg-background rounded-3xl shadow-2xl overflow-hidden font-body">
       <AnimatePresence mode="wait">
-        {isLoading && !weatherData ? (
+        {isLoading && !weatherData && !selectedLocation ? (
           <motion.div key="loader" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-6 space-y-4 h-[812px] flex flex-col justify-center">
             <Skeleton className="h-48 w-full" />
             <Skeleton className="h-24 w-full" />
